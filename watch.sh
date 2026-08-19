@@ -1,4 +1,4 @@
-#!/bin/ash
+#!/bin/sh
 
 collect_changes() {
 	# Remove hashes of deleted or moved files

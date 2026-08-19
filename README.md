@@ -43,7 +43,7 @@ In the project root directory, create a `docker-compose.yaml`:
 version: "3.8"
 services:
   watcher:
-    image: ghcr.io/oktupol/latex-watcher:2.1
+    image: ghcr.io/oktupol/latex-watcher:2.2
     environment:
       WATCH_MODE: "true"
     volumes:
