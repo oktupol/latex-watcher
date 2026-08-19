@@ -47,14 +47,18 @@ Consequences worth knowing before changing this:
 - Two identical `.tex` files collide on one cache entry — only one is tracked.
 - Only `.tex` files are ever added to the cache, so edits to `.bib`, `.sty` or included images do not trigger a rebuild.
 - The cache volume must persist across runs or everything rebuilds; conversely, wiping it is the way to force a full rebuild.
+- Both loops iterate `find ... | while IFS= read -r`, not `for x in $(find ...)`. The latter word-splits, which silently skipped any path containing a space (fixed in v2.1). Paths containing *newlines* are still unsupported — busybox `read` has no `-d`, so `find -print0` cannot be consumed.
 
-`build_pdf` `cd`s into the source file's directory (so relative `\input`/`\includegraphics` resolve) and runs `pdflatex -interaction nonstopmode` with `-output-directory` pointing at the destination. It is a single pass — references and TOCs will be stale on first build.
+`build_pdf` is a subshell function (`build_pdf() ( ... )`) so its `cd` into the source file's directory — needed for relative `\input`/`\includegraphics` to resolve — cannot leak into the caller. It runs `pdflatex -interaction nonstopmode` with `-output-directory` pointing at the destination, then reruns while the log reports `Rerun to get` / `Rerun LaTeX`, capped at two extra passes.
+
+That rerun is what makes `\ref`, `\pageref` and the TOC correct on a document's *first* build. It is conditional, so once `.aux` is current the check costs one `grep`. Note `-output-directory` also puts `.aux`/`.toc` in the destination, and TeX Live finds them there again on the next run via `TEXMFOUTPUT` — so a stale `.aux` from a since-edited document can yield wrong-but-plausible numbers rather than an obvious `??`. Citations are a separate matter: `bibtex`/`biber` are never invoked, so `\cite` never resolves.
 
 In `WATCH_MODE=true`, `inotifywait --monitor` feeds a read loop; the `timeout 1 cat >/dev/null` line is a debounce that swallows the burst of events an editor save produces before re-running `collect_changes`.
 
 ## Conventions
 
-- The script targets busybox `ash` under Alpine, not bash — keep constructs compatible with the image's shell.
+- The script targets busybox `ash` under Alpine, not bash — keep constructs compatible with the image's shell. In particular there is **no `[[ ]]`**: it is misparsed rather than rejected, so conditionals using it silently take the wrong branch (this is what broke `Changed:`/`Removed:` before v2.0). Use `[ ]` with `=`, and quote the operands.
 - Directories come from `INPUT_CACHE_DIR`, `INPUT_SOURCE_DIR`, `INPUT_DESTINATION_DIR`, all set in the Dockerfile; `WATCH_MODE` is the only variable users are expected to set.
-- Alpine and apk package versions in the Dockerfile are pinned exactly (`texlive-full=2025.2-r0`, `inotify-tools=4.23.9.0-r0`); a base-image bump usually requires updating those pins too, since old apk revisions disappear from the repos.
-- Images publish on every push to `main` (as `:latest`) and on `v*` tags (tag `v1.1` → image `:1.1`). User-facing docs reference the numbered tag, so a release means: tag, then update the image tag in `README.md` and on the `example` branch.
+- Alpine and apk package versions in the Dockerfile are pinned exactly (currently `alpine:3.24.1`, `texlive-full=2026.0-r0`, `inotify-tools=4.23.9.0-r0`); a base-image bump usually requires updating those pins too, since old apk revisions disappear from the repos. Resolve new pins by running `apk policy <pkg>` inside the candidate base image — the `-r` revision must match exactly or the build fails. Note apk's `texlive-full` version is a packaging number, not the TeX Live year: `2026.0-r0` still ships TeX Live 2025.
+- **`VOLUME` must come after the `chown` lines** in the Dockerfile. Docker discards changes made to a volume path in later layers, so declaring it early leaves the directories root-owned and the cache volume unwritable — which silently disables change detection entirely (fixed in v2.0).
+- Images publish on every push to `main` (as `:latest`) and on `v*` tags (tag `v2.1` → image `:2.1`). A multi-arch run takes ~45 min. User-facing docs reference the numbered tag, so a release means: tag, then update the image tag in `README.md` and on the `example` branch.
