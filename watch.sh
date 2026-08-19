@@ -7,12 +7,12 @@ collect_changes() {
 		file_hash="$(basename $file_hash_file)"
 		file_location="$(cat $file_hash_file)"
 
-		if [[ ! -e "$file_location" ]]; then
+		if [ ! -e "$file_location" ]; then
 			echo "Removed: $file_location"
 			rm "$file_hash_file"
 		else
 			new_file_hash="$(sha256sum $file_location | awk '{ print $1; }')"
-			if [[ "$file_hash" != "$new_file_hash" ]]; then
+			if [ "$file_hash" != "$new_file_hash" ]; then
 				mv "$INPUT_CACHE_DIR/$file_hash" "$INPUT_CACHE_DIR/$new_file_hash"
 				echo "Changed: $file_location"
 				build_pdf "$file_location"
@@ -23,7 +23,7 @@ collect_changes() {
 	# Add hashes of new files
 	for file_location in $(find $INPUT_SOURCE_DIR -type f -name '*.tex'); do
 		file_hash="$(sha256sum $file_location | awk '{ print $1; }')"
-		if [[ ! -e "$INPUT_CACHE_DIR/$file_hash" ]]; then
+		if [ ! -e "$INPUT_CACHE_DIR/$file_hash" ]; then
 			echo "$file_location" > "$INPUT_CACHE_DIR/$file_hash"
 			echo "Added: $file_location"
 			build_pdf "$file_location"
@@ -40,7 +40,7 @@ build_pdf() {
 
 collect_changes
 
-if [[ $WATCH_MODE == "true" ]]; then
+if [ "$WATCH_MODE" = "true" ]; then
 	inotifywait --recursive --monitor --event modify,move,create,delete $INPUT_SOURCE_DIR | \
 		while read change; do
 			# Debounce 1 second
