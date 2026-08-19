@@ -5,6 +5,12 @@ on:
       - main
     tags:
       - 'v*'
+    # Docs-only commits do not change the image. Note GitHub does not evaluate
+    # path filters for tag pushes, so a release tag still always publishes.
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - '.gitignore'
 
 env:
   IMAGE_NAME: latex-watcher
